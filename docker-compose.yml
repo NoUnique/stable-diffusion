@@ -1,0 +1,94 @@
+version: "2.3"
+
+networks:
+  traefik:
+    external: true
+
+x-base_service: &base_service
+    volumes:
+      - &v1 ./stable-diffusion-webui-docker/data:/data
+      - &v2 ./stable-diffusion-webui-docker/output:/output
+    stop_signal: SIGINT
+    runtime: nvidia
+    devices:
+      - /dev/nvidiactl
+      - /dev/nvidia-uvm
+      - /dev/nvidia0
+      - /dev/dri
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+services:
+  download:
+    build: ./stable-diffusion-webui-docker/services/download/
+    volumes:
+      - *v1
+
+  auto:
+    <<: *base_service
+    build: ./stable-diffusion-webui-docker/services/AUTOMATIC1111
+    image: sd-auto:49
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - CLI_ARGS=--allow-code --medvram --xformers --enable-insecure-extension-access --api
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.services.${COMPOSE_IMAGE_NAME}-auto.loadbalancer.serversTransport=docker-transport@file
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-auto.rule=PathPrefix(`/${COMPOSE_IMAGE_NAME}-auto`)
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-auto.service=${COMPOSE_IMAGE_NAME}-auto
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-auto.middlewares=traefik-forward-auth,${COMPOSE_IMAGE_NAME}-auto-redirect,${COMPOSE_IMAGE_NAME}-auto-strip
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-auto-strip.stripprefix.prefixes=/${COMPOSE_IMAGE_NAME}-auto
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-auto-redirect.redirectregex.regex=^(?:.*:\/\/)?([^:\/]*?\.[^\/]*)[^\/\?]*\/${COMPOSE_IMAGE_NAME}-auto$$
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-auto-redirect.redirectregex.replacement=https://$${1}/${COMPOSE_IMAGE_NAME}-auto/
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-auto-redirect.redirectregex.permanent=true
+
+  invoke:
+    <<: *base_service
+    build: ./stable-diffusion-webui-docker/services/invoke/
+    image: sd-invoke:26
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - PRELOAD=true
+      - CLI_ARGS=
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.services.${COMPOSE_IMAGE_NAME}-invoke.loadbalancer.serversTransport=docker-transport@file
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-invoke.rule=PathPrefix(`/${COMPOSE_IMAGE_NAME}-invoke`)
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-invoke.service=${COMPOSE_IMAGE_NAME}-invoke
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-invoke.middlewares=traefik-forward-auth,${COMPOSE_IMAGE_NAME}-invoke-redirect,${COMPOSE_IMAGE_NAME}-invoke-strip
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-invoke-strip.stripprefix.prefixes=/${COMPOSE_IMAGE_NAME}-invoke
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-invoke-redirect.redirectregex.regex=^(?:.*:\/\/)?([^:\/]*?\.[^\/]*)[^\/\?]*\/${COMPOSE_IMAGE_NAME}-invoke$$
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-invoke-redirect.redirectregex.replacement=https://$${1}/${COMPOSE_IMAGE_NAME}-invoke/
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-invoke-redirect.redirectregex.permanent=true
+
+  sygil:
+    <<: *base_service
+    build: ./stable-diffusion-webui-docker/services/sygil/
+    image: sd-sygil:16
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - CLI_ARGS=--optimized-turbo
+      - USE_STREAMLIT=0
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.services.${COMPOSE_IMAGE_NAME}-sygil.loadbalancer.serversTransport=docker-transport@file
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-sygil.rule=PathPrefix(`/${COMPOSE_IMAGE_NAME}-sygil`)
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-sygil.service=${COMPOSE_IMAGE_NAME}-sygil
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-sygil.middlewares=traefik-forward-auth,${COMPOSE_IMAGE_NAME}-sygil-redirect,${COMPOSE_IMAGE_NAME}-sygil-strip
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-sygil-strip.stripprefix.prefixes=/${COMPOSE_IMAGE_NAME}-sygil
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-sygil-redirect.redirectregex.regex=^(?:.*:\/\/)?([^:\/]*?\.[^\/]*)[^\/\?]*\/${COMPOSE_IMAGE_NAME}-sygil$$
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-sygil-redirect.redirectregex.replacement=https://$${1}/${COMPOSE_IMAGE_NAME}-sygil/
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-sygil-redirect.redirectregex.permanent=true

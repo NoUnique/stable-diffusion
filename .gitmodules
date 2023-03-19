@@ -1,0 +1,6 @@
+[submodule ".devcontainer"]
+	path = .devcontainer
+	url = git@github.com:NoUnique/.devcontainer.git
+[submodule "stable-diffusion-webui-docker"]
+	path = stable-diffusion-webui-docker
+	url = git@github.com:AbdBarho/stable-diffusion-webui-docker.git
